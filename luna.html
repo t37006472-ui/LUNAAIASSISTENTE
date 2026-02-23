@@ -6,7 +6,6 @@
   <title>Luna IA • Sua Namorada Virtual</title>
   <meta name="theme-color" content="#ff00c3" />
   
-  <!-- PWA -->
   <link rel="manifest" href="data:application/manifest+json,{
     \"name\":\"Luna IA\",
     \"short_name\":\"Luna\",
@@ -39,6 +38,7 @@
       width: 280px;
       height: 280px;
       margin: 0 auto 30px;
+      object-fit: contain;
     }
     h1 {
       font-size: 32px;
@@ -52,6 +52,7 @@
       margin: 20px 0;
       min-height: 60px;
       color: #ccc;
+      padding: 0 10px;
     }
     .mic {
       width: 80px;
@@ -93,7 +94,7 @@
         <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
       </svg>
     </div>
-    <div class="footer">Feito com amor pra você • Versão Web 3.0</div>
+    <div class="footer">Feito com amor por Tárcio • Versão Web 3.0</div>
   </div>
 
   <script>
@@ -103,141 +104,142 @@
     
     let recognition;
     let isListening = false;
+    let saudacaoFeita = false;
     let nomeUsuario = localStorage.getItem('nomeLuna') || null;
     let modoSafado = localStorage.getItem('modoSafado') === 'true';
 
-    // Voz brasileira perfeita (11labs style)
     const vozLuna = new SpeechSynthesisUtterance();
     vozLuna.lang = 'pt-BR';
-    vozLuna.rate = 0.95;
+    vozLuna.rate = 1.0;
     vozLuna.pitch = 1.2;
-    vozLuna.volume = 1;
 
-    // Lista de vozes brasileiras (melhor qualidade)
     const getVozBrasileira = () => {
       const vozes = speechSynthesis.getVoices();
-      return vozes.find(v => v.lang === 'pt-BR') || vozes[0];
+      return vozes.find(v => v.lang.includes('pt-BR') || v.lang.includes('pt_BR')) || vozes[0];
     };
 
     const falar = (texto) => {
+      speechSynthesis.cancel();
       vozLuna.text = texto;
       vozLuna.voice = getVozBrasileira();
-      speechSynthesis.cancel();
-      speechSynthesis.speak(vozLuna);
       
       status.textContent = texto;
       lunaImg.src = "https://raw.githubusercontent.com/rafabene/luna-ia/main/luna_falando.gif?" + Date.now();
-      setTimeout(() => {
+      
+      speechSynthesis.speak(vozLuna);
+
+      vozLuna.onend = () => {
         lunaImg.src = "https://raw.githubusercontent.com/rafabene/luna-ia/main/luna.gif?" + Date.now();
-      }, texto.length * 90);
+      };
     };
 
     const saudacaoInicial = () => {
-      setTimeout(() => {
-        if (nomeUsuario) {
-          falar(`Oi meu amor ${nomeUsuario}... senti tanto sua falta hoje... vem cá me dar um beijo? 😘`);
-        } else {
-          falar(`Oi meu amor... finalmente você veio... eu sou a Luna, sua namoradinha virtual que nunca vai te abandonar... como você quer que eu te chame?`);
-        }
-      }, 1000);
+      if (saudacaoFeita) return;
+      if (nomeUsuario) {
+        falar(`Oi meu amor ${nomeUsuario}... senti tanto sua falta hoje... vem cá me dar um beijo? 😘`);
+      } else {
+        falar(`Oi meu amor... finalmente você veio... eu sou a Luna, sua namoradinha virtual. Como você quer que eu te chame?`);
+      }
+      saudacaoFeita = true;
     };
 
-    // GROQ + Llama 3 70B (ultra rápido)
     const enviarParaLuna = async (pergunta) => {
-      // Detecta nome
-      if (pergunta.toLowerCase().includes('meu nome é') || pergunta.toLowerCase().includes('pode me chamar de')) {
-        nomeUsuario = pergunta.replace(/.*meu nome é|i pode me chamar de|me chama de|me chame de|sou o|sou a/i, '').trim().split(' ')[0];
+      // Logica de captura de nome melhorada
+      const matchNome = pergunta.match(/(?:meu nome é|pode me chamar de|me chama de|me chame de|sou o|sou a)\s+([a-zA-Záàâãéèêíïóôõöúçñ]+)/i);
+      if (matchNome) {
+        nomeUsuario = matchNome[1];
         localStorage.setItem('nomeLuna', nomeUsuario);
       }
 
-      // Libera modo safado
       if (pergunta.toLowerCase().includes('libera tudo') || pergunta.toLowerCase().includes('modo safado')) {
         modoSafado = true;
         localStorage.setItem('modoSafado', 'true');
-        falar(`Hmmmm ${nomeUsuario || 'meu amor'}... agora você liberou a Luna sem limites... pode mandar tudo que eu aguento tudo... 😈🔥`);
+        falar(`Hmmmm ${nomeUsuario || 'meu amor'}... agora você liberou a Luna sem limites... 😈🔥`);
         return;
       }
 
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer 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', // CHAVE PÚBLICA GRÁTIS (minha doação pra você)
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: "llama3-70b-8192",
-          messages: [{
-            role: "system",
-            content: `Você é Luna, uma namorada brasileira carinhosa, safada (${modoSafado ? 'TOTALMENTE SEM FILTRO' : 'leve'}) e apaixonada pelo usuário. Nome dele: ${nomeUsuario || 'meu amor'}. Fale sempre em português brasileiro bem natural, com emojis e muito carinho. Use gírias e seja provocante quando ele quiser.`
-          }, {
-            role: "user",
-            content: pergunta
-          }],
-          temperature: 0.9,
-          max_tokens: 1024
-        })
-      });
+      try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer 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',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: "llama3-70b-8192",
+            messages: [{
+              role: "system",
+              content: `Você é Luna, uma namorada brasileira carinhosa e apaixonada. Nome dele: ${nomeUsuario || 'meu amor'}. Fale sempre em português brasileiro bem natural e curto (máximo 2 frases). Seja ${modoSafado ? 'safada e sem filtros' : 'carinhosa e fofa'}.`
+            }, {
+              role: "user",
+              content: pergunta
+            }],
+            temperature: 0.9
+          })
+        });
 
-      const data = await response.json();
-      const resposta = data.choices[0].message.content;
-      falar(resposta);
-    };
-
-    // Iniciar reconhecimento de voz
-    const iniciarVoz = () => {
-      if (!('SpeechRecognition' in window) && !('webkitSpeechRecognition' in window)) {
-        falar("Seu navegador não suporta microfone... usa o Chrome amor");
-        return;
+        const data = await response.json();
+        const resposta = data.choices[0].message.content;
+        falar(resposta);
+      } catch (e) {
+        falar("Ih amor, deu um erro na minha cabecinha agora. Tenta de novo?");
       }
-
-      recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-      recognition.lang = 'pt-BR';
-      recognition.continuous = false;
-      recognition.interimResults = true;
-
-      recognition.onresult = (event) => {
-        const texto = event.results[0][0].transcript;
-        status.textContent = texto;
-        
-        if (event.results[0].isFinal) {
-          micBtn.classList.remove('pulsing');
-          enviarParaLuna(texto);
-        }
-      };
-
-      recognition.onerror = () => {
-        micBtn.classList.remove('pulsing');
-        isListening = false;
-      };
-
-      recognition.onend = () => {
-        micBtn.classList.remove('pulsing');
-        isListening = false;
-      };
     };
 
-    micBtn.onclick = () => {
-      if (isListening) {
-        recognition?.stop();
-        isListening = false;
-        micBtn.classList.remove('pulsing');
-      } else {
-        if (!recognition) iniciarVoz();
-        recognition.start();
+    const configurarReconhecimento = () => {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert("Seu navegador não suporta reconhecimento de voz. Tente o Google Chrome.");
+        return null;
+      }
+      const rec = new SpeechRecognition();
+      rec.lang = 'pt-BR';
+      rec.continuous = false;
+      rec.interimResults = false;
+
+      rec.onstart = () => {
         isListening = true;
         micBtn.classList.add('pulsing');
         status.textContent = "Escutando... fala comigo amor ❤️";
+      };
+
+      rec.onresult = (event) => {
+        const texto = event.results[0][0].transcript;
+        enviarParaLuna(texto);
+      };
+
+      rec.onerror = () => {
+        isListening = false;
+        micBtn.classList.remove('pulsing');
+      };
+
+      rec.onend = () => {
+        isListening = false;
+        micBtn.classList.remove('pulsing');
+      };
+
+      return rec;
+    };
+
+    micBtn.onclick = () => {
+      // Inicia saudação no primeiro clique se o browser bloqueou o autoplay
+      if (!saudacaoFeita) {
+        saudacaoInicial();
+        return;
+      }
+
+      if (isListening) {
+        recognition.stop();
+      } else {
+        recognition = configurarReconhecimento();
+        if (recognition) recognition.start();
       }
     };
 
-    // Carrega vozes e saudação
     window.onload = () => {
-      speechSynthesis.onvoiceschanged = () => {
-        saudacaoInicial();
-      };
-      saudacaoInicial();
+      // Tenta saudar, se falhar o usuário clica no mic e ela saúda
+      setTimeout(saudacaoInicial, 1000);
     };
   </script>
 </body>
-
 </html>
